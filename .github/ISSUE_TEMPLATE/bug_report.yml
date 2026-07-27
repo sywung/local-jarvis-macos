@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a problem with AI Jarvis on macOS
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! This is a **macOS-only** port. Windows issues belong upstream at
+        [LYiHub/pub-local-jarvis](https://github.com/LYiHub/pub-local-jarvis).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ./run-macos.sh
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version + chip
+      placeholder: "macOS 14.5, Apple M2"
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: oMLX / models / audio setup
+      description: oMLX version, loaded models (vision + STT), BlackHole/Multi-Output Device status.
+      placeholder: |
+        oMLX 0.5.x; MiniCPM-o-4_5-4bit + whisper-large-v3-turbo loaded
+        BlackHole 2ch installed, Multi-Output Device set as system output
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Backend / Electron console output. Redact any API keys.
+      render: shell

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Upstream (Windows) AI Jarvis
+    url: https://github.com/LYiHub/pub-local-jarvis
+    about: This repo is a macOS port. For the original Windows app, use the upstream project.

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Jarvis Pet</title>
+  <link rel="stylesheet" href="pet.css">
+</head>
+<body>
+  <section id="pet-chat" class="pet-chat interactive" aria-label="與 JARVIS 對話" hidden>
+    <header class="chat-head">
+      <div class="chat-identity"><span class="signal-dot"></span><strong>JARVIS</strong><span>對話</span></div>
+      <button id="chat-close" class="chat-close" type="button" title="關閉對話" aria-label="關閉對話">&times;</button>
+    </header>
+    <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
+    <form id="chat-form" class="chat-form">
+      <label class="sr-only" for="chat-input">訊息</label>
+      <textarea id="chat-input" maxlength="2000" rows="1" placeholder="輸入訊息"></textarea>
+      <button id="chat-send" type="submit">傳送</button>
+    </form>
+  </section>
+
+  <div id="bubble" class="speech-bubble interactive" role="status" hidden>
+    <div class="bubble-head"><span class="signal-dot"></span><strong>JARVIS</strong></div>
+    <p id="bubble-text"></p>
+    <button id="bubble-action" type="button" hidden>開啟課程總結</button>
+  </div>
+
+  <div id="pet" class="pet interactive" data-scene="other" data-state="idle" aria-label="AI Jarvis 桌寵">
+    <img id="pet-animation" class="pet-animation" alt="" draggable="false">
+    <button id="privacy-toggle" class="privacy-toggle" type="button"
+      title="雙擊暫停或恢復畫面感知" aria-label="雙擊暫停或恢復畫面感知"></button>
+  </div>
+  <script src="../pet-state.js"></script>
+  <script src="pet.js"></script>
+</body>
+</html>

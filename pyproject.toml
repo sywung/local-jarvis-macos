@@ -1,0 +1,62 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aijarvis-backend"
+version = "0.1.2"
+description = "Local-first AI Jarvis control plane"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "hf-xet>=1.1,<2",
+  "huggingface-hub>=0.30,<2",
+  "opencc-python-reimplemented>=0.1.7,<1",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.7,<3",
+  "tqdm>=4.65,<5",
+  "uvicorn[standard]>=0.34,<1",
+]
+
+[project.optional-dependencies]
+test = [
+  "httpx>=0.28,<1",
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.25,<1",
+]
+llm = ["anthropic>=0.116,<1"]
+packaging = ["pyinstaller>=6.14,<7"]
+
+[project.scripts]
+jarvis-backend = "jarvis_backend.app:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jarvis_backend"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src",
+  "/config",
+  "/README.md",
+  "/LICENSE",
+  "/THIRD_PARTY_NOTICES.md",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests/unit"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.ruff.lint.per-file-ignores]
+# mac_client.py embeds the perception prompt ported verbatim from the upstream
+# C++ worker; those long Chinese string literals must stay line-for-line in sync.
+"src/jarvis_backend/native/mac_client.py" = ["E501"]

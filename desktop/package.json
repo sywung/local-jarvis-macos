@@ -1,0 +1,52 @@
+{
+  "name": "aijarvis-desktop",
+  "version": "0.1.2",
+  "private": true,
+  "description": "Thin Electron desktop companion for the AI Jarvis backend",
+  "author": "AI Jarvis Contributors",
+  "license": "MIT",
+  "main": "src/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "test:visual": "electron test/visual-smoke.js",
+    "assets:generate": "electron test/generate-assets.js",
+    "assets:memory-references": "electron test/generate-memory-reference-assets.js",
+    "deps:install": "node scripts/install-dependencies.js",
+    "build": "node scripts/build.js"
+  },
+  "dependencies": {
+    "lucide": "^0.468.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^41.10.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.aijarvis.desktop",
+    "productName": "AI Jarvis",
+    "artifactName": "AI-Jarvis-Setup-${version}-${arch}.${ext}",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../LICENSE",
+        "to": "licenses/AI-Jarvis-LICENSE.txt"
+      },
+      {
+        "from": "../THIRD_PARTY_NOTICES.md",
+        "to": "licenses/THIRD_PARTY_NOTICES.md"
+      }
+    ],
+    "mac": {
+      "icon": "assets/icon.png",
+      "category": "public.app-category.productivity",
+      "target": "dmg"
+    }
+  }
+}

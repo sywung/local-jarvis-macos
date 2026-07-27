@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' file:; style-src 'self'; img-src 'self' data: file:">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Jarvis</title>
+  <link rel="stylesheet" href="launcher.css">
+</head>
+<body>
+  <main class="control-shell">
+    <header class="app-header">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true"><span>J</span></div>
+        <div class="brand-copy">
+          <h1>AI 賈維斯</h1>
+          <p>本地桌面智慧</p>
+        </div>
+      </div>
+
+      <nav class="view-tabs" aria-label="主檢視">
+        <button id="overview-tab" class="view-tab active" data-view="overview" type="button" aria-controls="overview-view" aria-selected="true">
+          <i data-lucide="activity"></i><span>概覽</span>
+        </button>
+        <button id="memory-tab" class="view-tab" data-view="memory" type="button" aria-controls="memory-view" aria-selected="false">
+          <i data-lucide="notebook-tabs"></i><span>記憶</span><b id="memory-dot" hidden></b>
+        </button>
+      </nav>
+
+      <span id="phase-chip" class="phase-chip"><i aria-hidden="true"></i><span>待啟動</span></span>
+    </header>
+
+    <section id="overview-view" class="app-view active" aria-labelledby="overview-tab">
+      <div class="view-scroll">
+        <section class="status-band" aria-live="polite">
+          <div class="status-copy">
+            <p class="section-kicker">系統狀態</p>
+            <p id="status-title" class="status-title">系統處於待命狀態</p>
+            <p id="status-detail" class="status-detail">啟動後將連線本地模型，持續理解螢幕與系統聲音。</p>
+            <div id="startup-progress" class="startup-progress" hidden>
+              <div class="startup-progress-meta">
+                <span id="startup-progress-label">正在檢查本地模型</span>
+                <output id="startup-progress-value">準備中</output>
+              </div>
+              <div id="startup-progress-track" class="startup-progress-track indeterminate" role="progressbar" aria-label="啟動進度" aria-valuemin="0" aria-valuemax="100">
+                <span id="startup-progress-bar"></span>
+              </div>
+            </div>
+            <span class="privacy"><i data-lucide="shield-check"></i> 資料留在本機</span>
+          </div>
+          <div class="pulse-orbit" aria-hidden="true">
+            <span class="signal-line left"></span>
+            <span class="signal-core"><i></i></span>
+            <span class="signal-line right"></span>
+          </div>
+        </section>
+
+        <section class="capability-section" aria-labelledby="capability-title">
+          <div class="section-head">
+            <div><p class="section-kicker">工作臺</p><h2 id="capability-title">當前能力</h2></div>
+            <span class="section-note">自動識別場景</span>
+          </div>
+          <div class="system-list" aria-label="執行能力">
+            <div class="system-row">
+              <span class="row-icon"><i data-lucide="scan-line"></i></span>
+              <div><strong>持續感知</strong><small>螢幕與系統音訊在本機處理</small></div>
+              <span id="monitor-value" class="row-value">未執行</span>
+            </div>
+            <div class="system-row">
+              <span class="row-icon amber"><i data-lucide="gamepad-2"></i></span>
+              <div><strong>當前場景</strong><small id="game-profile-summary">遊戲方案：我的世界</small></div>
+              <span id="scene-value" class="row-value">其他</span>
+            </div>
+            <button id="game-profile-button" class="system-row profile-row" type="button">
+              <span class="row-icon green"><i data-lucide="library"></i></span>
+              <div><strong>遊戲陪伴方案</strong><small>選擇遊戲與陪伴偏好</small></div>
+              <span class="row-action">管理 <i data-lucide="chevron-right"></i></span>
+            </button>
+            <div class="system-row">
+              <span class="row-icon red"><i data-lucide="graduation-cap"></i></span>
+              <div><strong>課程記錄</strong><small>轉寫、關鍵畫面與課程總結</small></div>
+              <span class="row-value">自動</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="activity-section">
+          <div class="section-head">
+            <div><p class="section-kicker">最近動態</p><h2>執行日誌</h2></div>
+            <span class="live-label"><i></i> 即時</span>
+          </div>
+          <div id="activity-log" class="activity-log" role="log" aria-live="polite">
+            <p><time>--:--</time><span>等待啟動 AI 賈維斯</span></p>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section id="memory-view" class="app-view memory-view" aria-labelledby="memory-tab">
+      <header class="memory-header">
+        <div class="memory-heading">
+          <p class="section-kicker">每日記憶</p>
+          <div><h2>今天</h2><span id="memory-today-label" class="memory-date">--</span></div>
+        </div>
+        <div class="memory-count"><strong id="memory-today-count">0</strong><span>條活動</span></div>
+        <div class="memory-mode" role="tablist" aria-label="記憶檢視">
+          <button class="active" type="button" role="tab" aria-selected="true" data-memory-mode="text"><i data-lucide="notebook-text"></i><span>文字回顧</span></button>
+          <button type="button" role="tab" aria-selected="false" data-memory-mode="image"><i data-lucide="image"></i><span>日程圖</span></button>
+        </div>
+      </header>
+
+      <div class="memory-actions">
+        <button id="memory-generate" class="primary-command" type="button"><i data-lucide="sparkles"></i><span>生成今日記憶</span></button>
+        <button id="memory-image-generate" class="secondary-command" type="button"><i data-lucide="image-plus"></i><span>生成日程圖</span></button>
+        <button id="memory-image-settings" class="icon-command compact" type="button" title="配置生圖模型" aria-label="配置生圖模型"><i data-lucide="settings-2"></i></button>
+        <span id="memory-state" class="memory-state" aria-live="polite">等待連線</span>
+      </div>
+
+      <section class="memory-history">
+        <div class="section-head">
+          <div><p class="section-kicker">時間線</p><h2>每日記錄</h2></div>
+          <button id="memory-refresh" class="icon-command compact" type="button" title="重新整理記憶" aria-label="重新整理記憶"><i data-lucide="refresh-cw"></i></button>
+        </div>
+        <div id="memory-days" class="memory-days" role="list"></div>
+      </section>
+
+      <article id="memory-document" class="memory-document" aria-live="polite">
+        <div class="empty-memory"><i data-lucide="notebook"></i><p>今天還沒有可記錄的活動</p></div>
+      </article>
+
+      <section id="memory-image-view" class="memory-image-view" aria-live="polite" hidden>
+        <div class="memory-image-stage">
+          <img id="memory-image-preview" alt="所選日期的 AI 賈維斯日程圖" hidden>
+          <div id="memory-image-empty" class="memory-image-empty"><i data-lucide="image"></i><p>這一天還沒有日程圖</p></div>
+          <span id="memory-image-stamp" class="memory-image-stamp"></span>
+        </div>
+        <div id="memory-image-history" class="memory-image-history" aria-label="該日期的歷史日程圖"></div>
+      </section>
+    </section>
+
+    <footer class="command-bar">
+      <button id="start-button" class="primary-command" type="button"><i data-lucide="power"></i><span>啟動 AI 賈維斯</span></button>
+      <button id="pause-button" class="secondary-command" type="button" hidden><i data-lucide="pause"></i><span>暫停感知</span></button>
+    </footer>
+  </main>
+
+  <dialog id="game-profile-dialog" class="profile-dialog" aria-labelledby="profile-dialog-title">
+    <form id="game-profile-form" method="dialog">
+      <header class="dialog-head">
+        <div>
+          <p class="section-kicker">遊戲場景</p>
+          <h2 id="profile-dialog-title">陪伴方案</h2>
+          <p>進入對應遊戲時，賈維斯會自動使用所選方案。</p>
+        </div>
+        <button id="profile-close" class="icon-command compact" type="button" title="關閉" aria-label="關閉"><i data-lucide="x"></i></button>
+      </header>
+
+      <section class="profile-picker" aria-label="方案選擇">
+        <label><span>方案庫</span><select id="profile-select" aria-label="當前遊戲"></select></label>
+        <button id="profile-add" class="icon-command compact" type="button" title="新建方案" aria-label="新建方案"><i data-lucide="plus"></i></button>
+        <button id="profile-delete" class="icon-command compact danger" type="button" title="刪除方案" aria-label="刪除方案"><i data-lucide="trash-2"></i></button>
+      </section>
+
+      <div class="dialog-fields">
+        <label class="field-label"><span>遊戲名稱</span><input id="profile-name" maxlength="40" autocomplete="off" required></label>
+        <label class="field-label prompt-field">
+          <span class="field-meta"><span>專屬提示詞</span><output id="profile-prompt-count">0 / 8000</output></span>
+          <textarea id="profile-prompt" maxlength="8000" rows="9" required></textarea>
+        </label>
+      </div>
+
+      <footer class="dialog-actions">
+        <p id="profile-error" class="profile-error" aria-live="polite"></p>
+        <button class="primary-command" type="submit"><i data-lucide="save"></i><span>儲存並選用</span></button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog id="image-settings-dialog" class="profile-dialog image-settings-dialog" aria-labelledby="image-settings-title">
+    <form id="image-settings-form" method="dialog">
+      <header class="dialog-head">
+        <div>
+          <p class="section-kicker">影像生成</p>
+          <h2 id="image-settings-title">日程圖模型</h2>
+          <p id="image-settings-state">本機安全配置</p>
+        </div>
+        <button id="image-settings-close" class="icon-command compact" type="button" title="關閉" aria-label="關閉"><i data-lucide="x"></i></button>
+      </header>
+      <div class="dialog-fields">
+        <label class="field-label"><span>Base URL</span><input id="image-base-url" type="url" maxlength="2048" placeholder="https://api.openai.com/v1" autocomplete="url" required></label>
+        <label class="field-label"><span>API Key</span><input id="image-api-key" type="password" maxlength="4096" autocomplete="new-password"></label>
+        <label class="field-label"><span>模型名稱</span><input id="image-model-name" maxlength="256" placeholder="gpt-image-1.5" autocomplete="off" required></label>
+      </div>
+      <footer class="dialog-actions">
+        <p id="image-settings-error" class="profile-error" aria-live="polite"></p>
+        <button class="primary-command" type="submit"><i data-lucide="shield-check"></i><span>儲存配置</span></button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script src="../../node_modules/lucide/dist/umd/lucide.js"></script>
+  <script src="launcher.js"></script>
+</body>
+</html>
