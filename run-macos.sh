@@ -55,6 +55,36 @@ if ! curl -fsS -m 3 -H "Authorization: Bearer ${JARVIS_OMLX_API_KEY}" \
   echo "         Start oMLX and ensure the vision + STT models are registered." >&2
 fi
 
+# Evict a stale jarvis-backend from a DIFFERENT checkout squatting on the dev
+# port. In dev mode the backend listens on 127.0.0.1:8000 and desktop's
+# backend-manager.js reuses ANY healthy backend already there — so a leftover
+# backend from another repo (e.g. ~/git/local-jarvis) would hijack this app and
+# read/write the wrong memory store. Our own backend is left alone (reuse is
+# fine); non-jarvis processes are only reported, never killed.
+DEV_PORT="${JARVIS_DEV_PORT:-8000}"
+if command -v lsof >/dev/null 2>&1; then
+  for pid in $(lsof -nP -iTCP:"${DEV_PORT}" -sTCP:LISTEN -t 2>/dev/null || true); do
+    cmd="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
+    case "${cmd}" in
+      "")
+        ;;
+      *jarvis-backend*)
+        if [[ "${cmd}" != *"${ROOT}/"* ]]; then
+          echo "notice: evicting foreign jarvis-backend on :${DEV_PORT} (pid ${pid})" >&2
+          echo "        ${cmd}" >&2
+          kill "${pid}" 2>/dev/null || true
+          for _ in 1 2 3 4 5; do kill -0 "${pid}" 2>/dev/null || break; sleep 0.3; done
+          if kill -0 "${pid}" 2>/dev/null; then kill -9 "${pid}" 2>/dev/null || true; fi
+        fi
+        ;;
+      *)
+        echo "warning: :${DEV_PORT} held by a non-jarvis process (pid ${pid}); leaving it alone." >&2
+        echo "         ${cmd}" >&2
+        ;;
+    esac
+  done
+fi
+
 echo "Launching AI Jarvis (macOS / oMLX)…"
 echo "  vision=${JARVIS_OMLX_VISION_MODEL}  chat=${JARVIS_OMLX_CHAT_MODEL}  stt=${JARVIS_OMLX_STT_MODEL}"
 echo "  audio=${JARVIS_AUDIO_DEVICE}  perception=${JARVIS_PERCEPTION_INTERVAL}s"
