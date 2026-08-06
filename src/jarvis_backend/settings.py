@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, model_validator
 
 class ServerSettings(BaseModel):
     host: str = "127.0.0.1"
-    port: int = Field(default=8000, ge=1, le=65535)
+    port: int = Field(default=8900, ge=1, le=65535)
     bearer_token: str | None = None
 
 
@@ -100,6 +100,16 @@ class Settings(BaseModel):
             "log_level": os.getenv("JARVIS_LOG_LEVEL"),
         }
         raw.update({key: value for key, value in overrides.items() if value is not None})
+        data_root = os.getenv("JARVIS_DATA_ROOT")
+        if data_root:
+            memory = dict(raw.get("memory", {}))
+            configured_memory_root = Path(memory.get("root", "memory"))
+            memory["root"] = (
+                configured_memory_root
+                if configured_memory_root.is_absolute()
+                else Path(data_root).expanduser().resolve() / configured_memory_root
+            )
+            raw["memory"] = memory
         return cls.model_validate(raw)
 
 

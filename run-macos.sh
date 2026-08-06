@@ -56,12 +56,12 @@ if ! curl -fsS -m 3 -H "Authorization: Bearer ${JARVIS_OMLX_API_KEY}" \
 fi
 
 # Evict a stale jarvis-backend from a DIFFERENT checkout squatting on the dev
-# port. In dev mode the backend listens on 127.0.0.1:8000 and desktop's
+# port. In dev mode the backend listens on 127.0.0.1:8900 and desktop's
 # backend-manager.js reuses ANY healthy backend already there — so a leftover
 # backend from another repo (e.g. ~/git/local-jarvis) would hijack this app and
 # read/write the wrong memory store. Our own backend is left alone (reuse is
 # fine); non-jarvis processes are only reported, never killed.
-DEV_PORT="${JARVIS_DEV_PORT:-8000}"
+DEV_PORT="${JARVIS_DEV_PORT:-8900}"
 if command -v lsof >/dev/null 2>&1; then
   for pid in $(lsof -nP -iTCP:"${DEV_PORT}" -sTCP:LISTEN -t 2>/dev/null || true); do
     cmd="$(ps -p "${pid}" -o command= 2>/dev/null || true)"

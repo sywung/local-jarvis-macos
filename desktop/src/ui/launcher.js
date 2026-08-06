@@ -213,7 +213,7 @@ function setMemoryEmpty(message) {
 function memoryImageUrl(item) {
   const value = String(item?.content_url || "");
   if (/^(?:data:|https?:\/\/)/i.test(value)) return value;
-  return value ? `http://127.0.0.1:8000${value}` : "";
+  return value ? `http://127.0.0.1:8900${value}` : "";
 }
 
 function selectMemoryImage(item) {

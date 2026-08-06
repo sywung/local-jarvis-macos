@@ -79,7 +79,7 @@ ffmpeg -f avfoundation -list_devices true -i ""
 
 ```bash
 ./run-macos.sh
-curl -sS http://127.0.0.1:8000/api/v1/health
+curl -sS http://127.0.0.1:8900/api/v1/health
 ```
 
 預期看到 `native_connected: true`。macOS 桌寵快捷鍵為 `Cmd+M`；雙擊桌寵可切換隱私模式。

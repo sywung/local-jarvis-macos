@@ -9,6 +9,7 @@ const WebSocket = require("ws");
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const PROGRESS_PREFIX = "JARVIS_PROGRESS ";
+const DEFAULT_DEV_PORT = 8900;
 const DEFAULT_PACKAGED_PORT = 31847;
 const PET_CHAT_TIMEOUT_MS = 10 * 60 * 1000 + 15 * 1000;
 
@@ -130,7 +131,7 @@ class BackendManager extends EventEmitter {
     this.packaged = options.packaged === true;
     this.useFake = options.useFake === true;
     this.preferredPort = options.preferredPort || DEFAULT_PACKAGED_PORT;
-    this.baseUrl = options.baseUrl || `http://127.0.0.1:${this.packaged ? this.preferredPort : 8000}`;
+    this.baseUrl = options.baseUrl || `http://127.0.0.1:${this.packaged ? this.preferredPort : DEFAULT_DEV_PORT}`;
     this.portSelector = options.portSelector || selectAvailablePort;
     this.pipeNameFactory = options.pipeNameFactory || (() => (
       `\\\\.\\pipe\\AIJarvis.Worker.${process.pid}.${randomUUID()}`
