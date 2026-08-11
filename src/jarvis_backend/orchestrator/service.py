@@ -51,6 +51,37 @@ SCREEN_IDLE_MESSAGES = (
     "螢幕都快睡著了。",
     "今天的魚摸得很有節奏嘛。",
 )
+# dev_status 白名單，對應 PERCEPTION_PROMPT 中列出的八種狀態。
+_DEV_STATUSES = frozenset(
+    {
+        "coding",
+        "building",
+        "testing",
+        "debugging",
+        "reviewing",
+        "reading",
+        "running",
+        "idle",
+    }
+)
+
+# 模型違反「留空」指令時常見的否定說法，出現即視為無資訊。
+_DEV_EMPTY_MARKERS = (
+    "未顯示", "未見", "未知", "不明", "沒有", "無明確", "無法", "不確定",
+    "暫無", "缺乏", "n/a", "N/A", "none", "null", "unknown",
+)
+
+_DEV_METADATA_KEYS = (
+    "dev_environment",
+    "dev_language",
+    "dev_framework",
+    "dev_project",
+    "dev_status",
+    "dev_blocker",
+    "dev_progress",
+)
+
+
 def _normalize_text(text: str) -> str:
     return re.sub(r"[\W_]+", "", text.casefold())
 
@@ -155,6 +186,8 @@ class OrchestrationService:
             None,
         )
         today = datetime.now().astimezone().date()
+        self._last_dev_blocker = ""
+        self._last_dev_progress = ""
         self._last_memory_activity: tuple[str, str, float] | None = (
             (
                 str(recent_activity.metadata.get("scene", "other")),
@@ -384,6 +417,8 @@ class OrchestrationService:
     async def clear_memory(self) -> None:
         self.memory.clear()
         self._last_memory_activity = None
+        self._last_dev_blocker = ""
+        self._last_dev_progress = ""
         await self.events.publish(Event("memory.cleared", {}))
 
     @staticmethod
@@ -972,8 +1007,15 @@ class OrchestrationService:
         if previous is not None:
             previous_scene, previous_text, recorded_at = previous
             elapsed = now - recorded_at
+            # 開發場景下，錯誤或進展改變代表狀態真的推進了，值得立刻記錄；
+            # 其餘情況仍受最小間隔節流，避免同一個畫面被反覆寫入。
+            dev_change = scene == "dev" and (
+                str(result.get("dev_blocker", "")).strip() != self._last_dev_blocker
+                or str(result.get("dev_progress", "")).strip() != self._last_dev_progress
+            )
             if (
                 scene == previous_scene
+                and not dev_change
                 and elapsed < self.settings.memory.activity_min_interval_seconds
             ):
                 return
@@ -984,17 +1026,24 @@ class OrchestrationService:
             ):
                 return
 
-        event = self.memory.append(
-            "activity",
-            description,
-            {
-                "scene": scene,
-                "confidence": round(confidence, 3),
-                "source": "perception",
-            },
-        )
+        metadata: dict[str, Any] = {
+            "scene": scene,
+            "confidence": round(confidence, 3),
+            "source": "perception",
+        }
+        # 開發場景把可讀到的環境／語言／專案／狀態存成結構化欄位，
+        # 之後才能依環境或專案查詢，而不是只能全文搜尋 observation。
+        if scene == "dev":
+            for key in _DEV_METADATA_KEYS:
+                field_value = str(result.get(key, "")).strip()
+                if field_value:
+                    metadata[key] = field_value
+
+        event = self.memory.append("activity", description, metadata)
         day = self.memory.event_day(event)
         self._last_memory_activity = (scene, description, now)
+        self._last_dev_blocker = str(result.get("dev_blocker", "")).strip()
+        self._last_dev_progress = str(result.get("dev_progress", "")).strip()
         await self.events.publish(
             Event(
                 "memory.activity.recorded",
@@ -1165,7 +1214,7 @@ class OrchestrationService:
         if not isinstance(value, dict):
             raise ValueError("perception response is not an object")
         scene = str(value.get("scene", "other")).casefold()
-        if scene not in {"game", "course", "other"}:
+        if scene not in {"dev", "game", "course", "other"}:
             scene = "other"
         try:
             confidence = max(0.0, min(1.0, float(value.get("confidence", 0.0))))
@@ -1176,6 +1225,13 @@ class OrchestrationService:
         scene_evidence = {
             key: evidence.get(key) is True
             for key in (
+                "dev_surface",
+                "editor_visible",
+                "terminal_visible",
+                "version_control_visible",
+                "test_output_visible",
+                "error_visible",
+                "docs_or_localhost",
                 "game_surface",
                 "interactive_gameplay",
                 "game_video_or_stream",
@@ -1208,10 +1264,49 @@ class OrchestrationService:
         assistant_message = to_traditional_chinese(
             str(value.get("assistant_message", "")).strip()
         )
+        # 開發場景欄位：只有畫面直接可讀時模型才會填，這裡僅做長度與白名單約束。
+        dev_status = str(value.get("dev_status", "")).strip().casefold()
+        if dev_status not in _DEV_STATUSES:
+            dev_status = ""
+        # 模型常把「沒有這項資訊」寫成一句話而不是留空，這種值一旦存進
+        # metadata 就會污染查詢結果，這裡統一視為空字串。
+        def _dev_field(key: str, limit: int) -> str:
+            text = str(value.get(key, "")).strip()[:limit]
+            stripped = text.replace(" ", "").replace("　", "")
+            if not stripped or any(mark in stripped for mark in _DEV_EMPTY_MARKERS):
+                return ""
+            return text
+
+        dev_fields = {
+            "dev_environment": _dev_field("dev_environment", 64),
+            "dev_language": _dev_field("dev_language", 32),
+            "dev_framework": _dev_field("dev_framework", 64),
+            "dev_project": _dev_field("dev_project", 128),
+            "dev_status": dev_status,
+            "dev_blocker": _dev_field("dev_blocker", 120),
+            "dev_progress": _dev_field("dev_progress", 120),
+        }
+
         game_surface = scene_evidence["game_surface"]
         passive_game_media = scene_evidence["game_video_or_stream"]
         fullscreen_game_media = scene_evidence["fullscreen_game_media"]
-        if scene == "game":
+        if scene == "dev":
+            # 開發介面本身就是證據；沒有任何一項可見特徵就退回 other。
+            has_dev_surface = scene_evidence["dev_surface"] or any(
+                scene_evidence[key]
+                for key in (
+                    "editor_visible",
+                    "terminal_visible",
+                    "version_control_visible",
+                    "test_output_visible",
+                    "docs_or_localhost",
+                )
+            )
+            if not evidence and any(dev_fields.values()):
+                has_dev_surface = True
+            if confidence < 0.70 or not has_dev_surface:
+                scene = "other"
+        elif scene == "game":
             interactive = scene_evidence["interactive_gameplay"]
             if not evidence and (
                 barrage or value.get("barrage_candidates") or assistant_message
@@ -1225,7 +1320,11 @@ class OrchestrationService:
                     or (passive_game_media and fullscreen_game_media)
                 )
             )
-            if confidence < 0.72 or not valid_game_scene:
+            # 畫面上同時有編輯器或終端機時，主體是工作而非遊戲 —— 這道防線
+            # 用來擋掉風景桌布、影片預覽被判成遊戲世界的情形。
+            if scene_evidence["editor_visible"] or scene_evidence["terminal_visible"]:
+                scene = "dev"
+            elif confidence < 0.72 or not valid_game_scene:
                 scene = "other"
         elif scene == "course":
             active_instruction = scene_evidence["active_instruction"]
@@ -1276,6 +1375,10 @@ class OrchestrationService:
             "barrage_source": barrage_source,
             "barrage_fallback_reason": barrage_fallback_reason,
             "observation": observation[:300],
+            **{
+                key: (value_ if scene == "dev" else "")
+                for key, value_ in dev_fields.items()
+            },
             "barrage": barrage[:30] if scene == "game" else "",
             "barrage_candidates": barrage_candidates[:4] if scene == "game" else [],
             "course_transcript": course_transcript[:2000],

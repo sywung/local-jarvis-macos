@@ -24,6 +24,8 @@ game_enter_samples = 2
 display_exit_samples = 2
 game_exit_samples = 1
 game_uncertain_exit_samples = 2
+dev_enter_samples = 2
+dev_exit_samples = 3
 
 [barrage]
 max_age_seconds = 8.0

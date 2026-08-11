@@ -36,6 +36,10 @@ class SceneSettings(BaseModel):
     display_exit_samples: int = Field(default=2, ge=1)
     game_exit_samples: int = Field(default=1, ge=1)
     game_uncertain_exit_samples: int = Field(default=2, ge=1)
+    # 開發場景切換要比遊戲穩：RD 的畫面常在編輯器／終端機／瀏覽器之間跳，
+    # 但主體其實沒變，不該每跳一次就重新分類。
+    dev_enter_samples: int = Field(default=2, ge=1)
+    dev_exit_samples: int = Field(default=3, ge=1)
 
     @model_validator(mode="after")
     def thresholds_have_hysteresis(self) -> SceneSettings:
