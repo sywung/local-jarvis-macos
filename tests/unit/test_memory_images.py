@@ -192,7 +192,9 @@ async def test_daily_image_generates_missing_summary_and_preserves_history(
     _, prompt, image_references = generation_calls[0]
     assert "2026-07-17" in prompt
     assert "橫向卡通日程資訊圖" in prompt
-    assert "09:00至10:30，完成全雙工文本鏈路驗證" in prompt
+    # _daily_review runs the summary through OpenCC s2twp, whose Taiwan
+    # vocabulary mapping rewrites 文本 to 文字 even though both are Traditional.
+    assert "09:00至10:30，完成全雙工文字鏈路驗證" in prompt
     assert "第一張參考圖只決定 AI 賈維斯的角色外形" in prompt
     assert "第二張參考圖決定構圖、配色、線條和質感" in prompt
     assert [path.name for path in image_references] == [

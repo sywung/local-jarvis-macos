@@ -962,8 +962,13 @@ class OrchestrationService:
             "date": day.isoformat(),
             "event_count": len(self.memory.events_for_day(day)),
             "generated": True,
+            # Repairs stored documents whose time slots run together on one
+            # line. Only horizontal whitespace is collapsed: matching \s+ here
+            # would also swallow the blank line after the "## 今日回顧"
+            # heading, so a generated day would not read back as it was
+            # written.
             "content": re.sub(
-                r"\s+(?=\d{1,2}:\d{2}(?:至|-))",
+                r"[^\S\n]+(?=\d{1,2}:\d{2}(?:至|-))",
                 "\n",
                 to_traditional_chinese(content),
             ),

@@ -146,7 +146,9 @@ def test_perception_implicitly_maintains_daily_memory_and_deduplicates(
         assert "10:00至10:05" in generated["content"]
         assert "執行自動化測試並檢查結果" in generated["content"]
         assert len(summary_prompts) == 1
-        assert "只輸出一個連貫正文段落" in summary_prompts[0]
+        # The prompt asks for one line per time slot; it previously asked for a
+        # single flowing paragraph (see build_daily_summary_instruction).
+        assert "每個主要時段單獨一行" in summary_prompts[0]
         assert "使用者正在編輯 AI 賈維斯的記憶系統程式碼" in summary_prompts[0]
         assert "使用者正在執行自動化測試" in summary_prompts[0]
         assert client.get(
