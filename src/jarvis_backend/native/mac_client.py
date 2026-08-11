@@ -14,6 +14,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from .client import NativeClient
+from .mac_window import WindowRect, frontmost_window
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,9 @@ PERCEPTION_INTERVAL_SECONDS = float(os.environ.get("JARVIS_PERCEPTION_INTERVAL",
 # 1024 時終端機細節文字讀不準（實測會把 scrollback 舊輸出誤讀成當前狀態）；
 # 1600 可穩定讀出視窗標題與應用程式名。再高會讓 base64 payload 與推論時間明顯上升。
 CAPTURE_MAX_EDGE = int(os.environ.get("JARVIS_CAPTURE_MAX_EDGE", "1600"))
+# 裁切到前景視窗：多螢幕時跟著使用者跑，並把縮放預算留給實際內容而非桌布。
+# 設 0 可退回整個主螢幕擷取，用來 A/B 比較感知品質。
+CAPTURE_ACTIVE_WINDOW = os.environ.get("JARVIS_CAPTURE_ACTIVE_WINDOW", "1") != "0"
 
 # --- Audio full-duplex (ambient video/livestream commentary) ----------------
 # System audio is captured from a loopback device (BlackHole) via ffmpeg's
@@ -513,11 +517,7 @@ class MacNativeClient(NativeClient):
     def _capture_screen_b64(self) -> str:
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "frame.png")
-            result = subprocess.run(
-                ["screencapture", "-x", "-t", "png", path],
-                capture_output=True,
-                timeout=15,
-            )
+            result = self._run_capture(path)
             if result.returncode != 0 or not os.path.exists(path):
                 # The most common cause is a missing Screen Recording grant for
                 # the app that launched this backend (System Settings ->
@@ -537,3 +537,39 @@ class MacNativeClient(NativeClient):
             )
             with open(path, "rb") as handle:
                 return base64.b64encode(handle.read()).decode("ascii")
+
+    def _run_capture(self, path: str) -> subprocess.CompletedProcess[bytes]:
+        """Capture the active window, falling back to the whole main display.
+
+        Cropping keeps the user's actual workspace in frame on multi-display
+        setups and leaves more of the downscale budget for real content. A
+        failed crop retries full screen so a bad rect never blinds perception.
+        """
+        base = ["screencapture", "-x", "-t", "png"]
+        window = self._active_window() if CAPTURE_ACTIVE_WINDOW else None
+        if window is not None:
+            result = subprocess.run(
+                [*base, f"-R{window.as_capture_rect()}", path],
+                capture_output=True,
+                timeout=15,
+            )
+            if result.returncode == 0 and os.path.exists(path):
+                logger.debug(
+                    "captured active window %s (%s) rect=%s",
+                    window.owner,
+                    window.title or "untitled",
+                    window.as_capture_rect(),
+                )
+                return result
+            logger.debug(
+                "active-window capture failed for rect=%s, falling back to full screen",
+                window.as_capture_rect(),
+            )
+        return subprocess.run([*base, path], capture_output=True, timeout=15)
+
+    def _active_window(self) -> WindowRect | None:
+        try:
+            return frontmost_window()
+        except Exception:  # never let the probe break capture
+            logger.debug("active-window probe raised, using full screen", exc_info=True)
+            return None
