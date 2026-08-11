@@ -71,6 +71,9 @@ _DEV_EMPTY_MARKERS = (
     "暫無", "缺乏", "n/a", "N/A", "none", "null", "unknown",
 )
 
+# 阻塞點改變時可提早記錄，但仍需間隔至少這麼久，避免模型改寫錯誤訊息就繞過節流。
+_DEV_CHANGE_MIN_INTERVAL_SECONDS = 45.0
+
 _DEV_METADATA_KEYS = (
     "dev_environment",
     "dev_language",
@@ -1007,11 +1010,16 @@ class OrchestrationService:
         if previous is not None:
             previous_scene, previous_text, recorded_at = previous
             elapsed = now - recorded_at
-            # 開發場景下，錯誤或進展改變代表狀態真的推進了，值得立刻記錄；
-            # 其餘情況仍受最小間隔節流，避免同一個畫面被反覆寫入。
-            dev_change = scene == "dev" and (
-                str(result.get("dev_blocker", "")).strip() != self._last_dev_blocker
-                or str(result.get("dev_progress", "")).strip() != self._last_dev_progress
+            # 開發場景下，「阻塞點改變」代表狀態真的推進了，值得比一般節流早記錄。
+            #
+            # 刻意不看 dev_progress：模型每輪對同一畫面的措辭都不同，用字串比對
+            # 會判成一直在變，節流形同虛設（實測會變成每 7 秒寫一筆）。
+            # 阻塞點也仍設下限，避免模型在錯誤訊息上反覆改寫又繞過節流。
+            blocker = str(result.get("dev_blocker", "")).strip()
+            dev_change = (
+                scene == "dev"
+                and blocker != self._last_dev_blocker
+                and elapsed >= _DEV_CHANGE_MIN_INTERVAL_SECONDS
             )
             if (
                 scene == previous_scene
