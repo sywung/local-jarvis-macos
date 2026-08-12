@@ -154,7 +154,7 @@ window.addEventListener("keydown", event => {
 window.jarvis.onPetChatVisibility(setChatVisible);
 
 window.jarvis.onPetScene(scene => {
-  petContext.scene = ["game", "course", "other"].includes(scene) ? scene : "other";
+  petContext.scene = ["game", "course", "dev", "other"].includes(scene) ? scene : "other";
   pet.dataset.scene = petContext.scene;
   syncPetAnimation();
 });

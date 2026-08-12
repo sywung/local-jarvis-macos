@@ -22,7 +22,7 @@ const { displayForWindow, sourceForDisplay } = require("./pet-display");
 const { isPetPointerInteractive } = require("./pet-hit-test");
 const { moveWithinWorkArea, resizeAroundBottomRight } = require("./pet-window");
 const { randomPrivacyDelay, randomPrivacyMessage } = require("./privacy-mode");
-const { resolveDisplayScene } = require("./scene-policy");
+const { resolveDisplayScene, DISPLAY_SCENES } = require("./scene-policy");
 const {
   defaultSettings,
   loadSettings,
@@ -357,7 +357,7 @@ function updateTrayMenu() {
 
 function setScene(sceneValue) {
   const previousScene = state.scene;
-  const scene = ["game", "course", "other"].includes(sceneValue) ? sceneValue : "other";
+  const scene = DISPLAY_SCENES.includes(sceneValue) ? sceneValue : "other";
   if (scene !== previousScene && petBubbleVisible) {
     clearTimeout(bubbleTimer);
     bubbleTimer = null;

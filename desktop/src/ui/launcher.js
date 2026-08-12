@@ -52,7 +52,7 @@ let currentMemoryImages = [];
 let selectedMemoryImageId = "";
 let lastLoggedDownloadPercent = -5;
 
-const sceneNames = { game: "遊戲", course: "網課", other: "其他" };
+const sceneNames = { game: "遊戲", course: "網課", dev: "開發", other: "其他" };
 const phaseView = {
   idle: ["待啟動", "系統處於待命狀態", "啟動後將連線本地模型，持續理解螢幕與系統聲音。"],
   starting: ["啟動中", "正在啟動本地 AI", "正在檢查本地模型與自包含執行時。"],
