@@ -55,22 +55,36 @@ if ! curl -fsS -m 3 -H "Authorization: Bearer ${JARVIS_OMLX_API_KEY}" \
   echo "         Start oMLX and ensure the vision + STT models are registered." >&2
 fi
 
-# Evict a stale jarvis-backend from a DIFFERENT checkout squatting on the dev
-# port. In dev mode the backend listens on 127.0.0.1:8900 and desktop's
-# backend-manager.js reuses ANY healthy backend already there — so a leftover
-# backend from another repo (e.g. ~/git/local-jarvis) would hijack this app and
-# read/write the wrong memory store. Our own backend is left alone (reuse is
-# fine); non-jarvis processes are only reported, never killed.
+# Evict a stale jarvis-backend squatting on the dev port. In dev mode the
+# backend listens on 127.0.0.1:8900 and desktop's backend-manager.js reuses ANY
+# healthy backend already there, so two kinds of leftover hijack this app:
+#
+#   1. a backend from another checkout (e.g. ~/git/local-jarvis) — it would
+#      read/write the wrong memory store;
+#   2. an ORPHANED backend from our own checkout (PPID 1, its Electron parent
+#      quit without killing it) — it loses the launcher's Screen Recording and
+#      microphone grants, so screencapture/avfoundation fail every cycle while
+#      /health still answers ok. The app reuses it and records nothing.
+#
+# A live backend of our own (still parented to its launcher) is left alone;
+# reuse is the intended fast path. Non-jarvis processes are only reported.
 DEV_PORT="${JARVIS_DEV_PORT:-8900}"
 if command -v lsof >/dev/null 2>&1; then
   for pid in $(lsof -nP -iTCP:"${DEV_PORT}" -sTCP:LISTEN -t 2>/dev/null || true); do
     cmd="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
+    ppid="$(ps -p "${pid}" -o ppid= 2>/dev/null | tr -d ' ' || true)"
     case "${cmd}" in
       "")
         ;;
       *jarvis-backend*)
+        reason=""
         if [[ "${cmd}" != *"${ROOT}/"* ]]; then
-          echo "notice: evicting foreign jarvis-backend on :${DEV_PORT} (pid ${pid})" >&2
+          reason="foreign checkout"
+        elif [[ "${ppid}" == "1" ]]; then
+          reason="orphaned (launcher gone; capture permissions lost)"
+        fi
+        if [[ -n "${reason}" ]]; then
+          echo "notice: evicting ${reason} jarvis-backend on :${DEV_PORT} (pid ${pid})" >&2
           echo "        ${cmd}" >&2
           kill "${pid}" 2>/dev/null || true
           for _ in 1 2 3 4 5; do kill -0 "${pid}" 2>/dev/null || break; sleep 0.3; done
