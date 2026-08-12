@@ -51,6 +51,32 @@ SCREEN_IDLE_MESSAGES = (
     "螢幕都快睡著了。",
     "今天的魚摸得很有節奏嘛。",
 )
+# 感知場景白名單。兩處要用（正常解析與截斷回復），寫成常數避免再度漏同步——
+# 2026-08-11 加 dev 時漏改回復路徑的正則，導致 scene=dev 的殘缺回應無法回復。
+PERCEPTION_SCENES = ("dev", "game", "course", "other")
+
+# scene_evidence 的完整欄位。正常解析與截斷回復都用這一份，避免其中一邊漏欄位
+# （回復路徑原本缺了全部 7 個 dev 欄位）。
+PERCEPTION_EVIDENCE_KEYS = (
+    "dev_surface",
+    "editor_visible",
+    "terminal_visible",
+    "version_control_visible",
+    "test_output_visible",
+    "error_visible",
+    "docs_or_localhost",
+    "game_surface",
+    "interactive_gameplay",
+    "game_video_or_stream",
+    "fullscreen_game_media",
+    "active_instruction",
+    "course_surface",
+    "instructional_audio",
+    "ordinary_browsing",
+    "non_game_surface",
+)
+_DEV_EVIDENCE_KEYS = frozenset(PERCEPTION_EVIDENCE_KEYS[:7])
+
 # dev_status 白名單，對應 PERCEPTION_PROMPT 中列出的八種狀態。
 _DEV_STATUSES = frozenset(
     {
@@ -1227,7 +1253,7 @@ class OrchestrationService:
         if not isinstance(value, dict):
             raise ValueError("perception response is not an object")
         scene = str(value.get("scene", "other")).casefold()
-        if scene not in {"dev", "game", "course", "other"}:
+        if scene not in PERCEPTION_SCENES:
             scene = "other"
         try:
             confidence = max(0.0, min(1.0, float(value.get("confidence", 0.0))))
@@ -1236,25 +1262,7 @@ class OrchestrationService:
         raw_evidence = value.get("scene_evidence", {})
         evidence = raw_evidence if isinstance(raw_evidence, dict) else {}
         scene_evidence = {
-            key: evidence.get(key) is True
-            for key in (
-                "dev_surface",
-                "editor_visible",
-                "terminal_visible",
-                "version_control_visible",
-                "test_output_visible",
-                "error_visible",
-                "docs_or_localhost",
-                "game_surface",
-                "interactive_gameplay",
-                "game_video_or_stream",
-                "fullscreen_game_media",
-                "active_instruction",
-                "course_surface",
-                "instructional_audio",
-                "ordinary_browsing",
-                "non_game_surface",
-            )
+            key: evidence.get(key) is True for key in PERCEPTION_EVIDENCE_KEYS
         }
         barrage_pending = value.get("barrage_pending") is True
         classification_recovered = value.get("classification_recovered") is True
@@ -1417,7 +1425,9 @@ class OrchestrationService:
     @staticmethod
     def _recover_truncated_perception(source: str) -> dict[str, Any]:
         """Recover only the leading scene contract from a truncated model response."""
-        scene_match = re.search(r'"scene"\s*:\s*"(game|course|other)"', source)
+        scene_match = re.search(
+            rf'"scene"\s*:\s*"({"|".join(PERCEPTION_SCENES)})"', source
+        )
         confidence_match = re.search(
             r'"confidence"\s*:\s*(-?(?:\d+(?:\.\d*)?|\.\d+))', source
         )
@@ -1425,40 +1435,39 @@ class OrchestrationService:
             raise json.JSONDecodeError("incomplete perception JSON", source, len(source))
 
         evidence: dict[str, bool] = {}
-        evidence_keys = (
-            "game_surface",
-            "interactive_gameplay",
-            "game_video_or_stream",
-            "fullscreen_game_media",
-            "active_instruction",
-            "course_surface",
-            "instructional_audio",
-            "ordinary_browsing",
-            "non_game_surface",
-        )
-        for key in evidence_keys:
+        for key in PERCEPTION_EVIDENCE_KEYS:
             match = re.search(rf'"{key}"\s*:\s*(true|false)', source)
             if match:
                 evidence[key] = match.group(1) == "true"
 
         scene = scene_match.group(1)
-        required_evidence = {
-            "game": {
-                "game_surface",
-                "interactive_gameplay",
-                "game_video_or_stream",
-                "fullscreen_game_media",
-            },
-            "course": {
-                "active_instruction",
-                "course_surface",
-                "instructional_audio",
-                "ordinary_browsing",
-            },
-            "other": set(),
-        }[scene]
-        if not required_evidence.issubset(evidence):
-            raise json.JSONDecodeError("incomplete scene evidence", source, len(source))
+        if scene == "dev":
+            # dev 沒有單一決定性旗標：下游的降級規則是「dev_surface 或任一可見特徵為真」，
+            # 只要回復到其中一項，那條規則就能忠實執行；一項都沒讀到才無從驗證。
+            if not _DEV_EVIDENCE_KEYS & evidence.keys():
+                raise json.JSONDecodeError(
+                    "incomplete scene evidence", source, len(source)
+                )
+        else:
+            required_evidence = {
+                "game": {
+                    "game_surface",
+                    "interactive_gameplay",
+                    "game_video_or_stream",
+                    "fullscreen_game_media",
+                },
+                "course": {
+                    "active_instruction",
+                    "course_surface",
+                    "instructional_audio",
+                    "ordinary_browsing",
+                },
+                "other": set(),
+            }[scene]
+            if not required_evidence.issubset(evidence):
+                raise json.JSONDecodeError(
+                    "incomplete scene evidence", source, len(source)
+                )
 
         value: dict[str, Any] = {
             "scene": scene,

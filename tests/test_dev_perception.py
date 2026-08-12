@@ -72,3 +72,40 @@ def test_dev_without_evidence_falls_back_to_other():
 def test_dev_fields_cleared_outside_dev_scene():
     result = parse(base(scene="other", scene_evidence={}, dev_environment="Ghostty"))
     assert result["dev_environment"] == ""
+
+
+def test_truncated_dev_response_is_recovered():
+    """截斷的 dev 回應必須能回復場景，不能整筆丟掉。
+
+    2026-08-11 加 scene=dev 時只改了正常解析路徑，_recover_truncated_perception
+    的正則仍只認 game|course|other。8/12 實機出現一次
+    `perception.failed: incomplete perception JSON`——模型吐出 216 字元的殘缺
+    dev 回應，回復失敗，整筆感知被丟棄。
+    """
+    truncated = (
+        '{"scene": "dev", "confidence": 0.92, '
+        '"scene_evidence": {"dev_surface": true, "terminal_visible": true}, '
+        '"observation": "終端機正在執行測試，輸出多行結'
+    )
+    result = OrchestrationService._parse_perception(truncated)
+    assert result["scene"] == "dev"
+    assert result["confidence"] == 0.92
+    assert result["scene_evidence"]["terminal_visible"] is True
+
+
+def test_recovery_regex_covers_every_scene():
+    """回復路徑的場景正則必須認得所有合法場景，不能再有漏同步的列舉值。
+
+    證據不足而拒絕回復是既有的刻意契約（game/course 要求證據齊全），
+    這裡只守「場景本身認不認得出來」。
+    """
+    from jarvis_backend.orchestrator.service import PERCEPTION_SCENES
+
+    for scene in PERCEPTION_SCENES:
+        source = f'{{"scene": "{scene}", "confidence": 0.8, "scene_evidence": {{'
+        try:
+            OrchestrationService._recover_truncated_perception(source)
+        except json.JSONDecodeError as exc:
+            assert "incomplete scene evidence" in str(exc), (
+                f"場景 {scene} 沒被回復路徑的正則認出——列舉漏同步了"
+            )
