@@ -29,9 +29,12 @@ VISION_MODEL = os.environ.get("JARVIS_OMLX_VISION_MODEL", "MiniCPM-o-4_5-4bit")
 # MiniCPM-o is used for vision; text-only chat needs a dedicated text model.
 CHAT_MODEL = os.environ.get("JARVIS_OMLX_CHAT_MODEL", "").strip() or VISION_MODEL
 PERCEPTION_INTERVAL_SECONDS = float(os.environ.get("JARVIS_PERCEPTION_INTERVAL", "4.0"))
-# 1024 時終端機細節文字讀不準（實測會把 scrollback 舊輸出誤讀成當前狀態）；
-# 1600 可穩定讀出視窗標題與應用程式名。再高會讓 base64 payload 與推論時間明顯上升。
-CAPTURE_MAX_EDGE = int(os.environ.get("JARVIS_CAPTURE_MAX_EDGE", "1600"))
+# 2026-08-12 實測（同一張截圖、同一組問題）：解析度不是讀字能力的變因。
+# MiniCPM-o 在 1600 / 2000 / 2400 / 2704(原生) 全都讀不出中文介面文字——推論耗時
+# 反而隨解析度下降，代表視覺編碼器把圖縮到固定 token 預算，多餵的像素進不了模型。
+# 對照組 Qwen3.6-35B 在 1600 / 1200 / 1024 都能逐字讀對（5 次 3/3）。
+# 結論：1200 對兩顆模型都夠，比 1600 少 38% base64 payload。
+CAPTURE_MAX_EDGE = int(os.environ.get("JARVIS_CAPTURE_MAX_EDGE", "1200"))
 # 裁切到前景視窗：多螢幕時跟著使用者跑，並把縮放預算留給實際內容而非桌布。
 # 設 0 可退回整個主螢幕擷取，用來 A/B 比較感知品質。
 CAPTURE_ACTIVE_WINDOW = os.environ.get("JARVIS_CAPTURE_ACTIVE_WINDOW", "1") != "0"
