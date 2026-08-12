@@ -12,6 +12,7 @@ import jarvis_backend.orchestrator.service as service_module
 from jarvis_backend.app import create_app
 from jarvis_backend.courses import CourseStatus
 from jarvis_backend.memory import MemoryEvent
+from jarvis_backend.orchestrator.service import DEGRADED_MARKER
 from jarvis_backend.settings import (
     CourseSettings,
     InteractionSettings,
@@ -157,7 +158,13 @@ def test_perception_implicitly_maintains_daily_memory_and_deduplicates(
         assert client.get("/api/v1/memory/days/not-a-date").status_code == 422
 
 
-def test_daily_memory_generation_reports_local_model_failure(tmp_path, monkeypatch):
+def test_daily_memory_generation_marks_local_model_failure(tmp_path, monkeypatch):
+    """模型掛掉時降級但不遺失資料，且必須標示出來。
+
+    原始設計是回 503 讓失敗浮出來。但記憶工具的第一守則是不要有空白的一天——
+    純 fail-loud 會讓模型掛掉的那天完全沒有記憶，比降級更糟。改成「照寫、照回 200，
+    但強制標記」：失敗依然浮出來，只是換成不遺失資料的形式。
+    """
     with make_client(tmp_path) as client:
         orchestrator = client.app.state.orchestrator
         orchestrator.memory.append("activity", "使用者正在瀏覽專案檔案。", {"scene": "other"})
@@ -169,8 +176,16 @@ def test_daily_memory_generation_reports_local_model_failure(tmp_path, monkeypat
         today = client.get("/api/v1/memory/status").json()["today"]
         response = client.post(f"/api/v1/memory/days/{today}/generate")
 
-        assert response.status_code == 503
-        assert response.json()["detail"] == "本地模型暫時無法生成記憶總結，請稍後重試"
+        assert response.status_code == 200
+        body = response.json()
+        assert body["degraded"] is True
+        assert body["degraded_reason"] == "model_unavailable"
+        # 標記必須落在文件本身，不能只在 API 回應——記憶檔活得比 API 呼叫久。
+        assert DEGRADED_MARKER in body["content"]
+
+        # 讀回時同樣看得出來。
+        stored = client.get(f"/api/v1/memory/days/{today}")
+        assert stored.json()["degraded"] is True
 
 
 async def test_large_daily_memory_is_compacted_before_single_model_summary(
@@ -228,12 +243,82 @@ async def test_incomplete_daily_summary_does_not_replace_existing_document(
         return {"text": "10:00至11:15，進行專案開發，中間視窗展示"}
 
     monkeypatch.setattr(orchestrator.native_client, "request", summarize)
-    with pytest.raises(RuntimeError, match="latest event"):
-        await orchestrator.generate_daily_memory(local_time.date().isoformat())
+    result = await orchestrator.generate_daily_memory(local_time.date().isoformat())
 
+    # 既有的模型摘要不得被機械式時間軸覆蓋——這是資料保護，覆蓋掉就救不回來。
     assert orchestrator.memory.read_daily_memory(local_time.date()) == (
         "# existing\n\n完整的舊總結。\n"
     )
+    # 但拒絕覆蓋這件事必須說出來，不能默默回一個看起來成功的結果。
+    assert result["generated"] is False
+    assert result["degraded"] is True
+    assert result["degraded_reason"] == "incomplete_summary"
+
+
+async def test_degraded_document_may_be_replaced_by_a_later_degraded_one(
+    tmp_path, monkeypatch
+):
+    """既有文件本身是降級產物時，可以被新的降級產物取代。
+
+    「不覆蓋」保護的是模型摘要，不是機械式時間軸——否則第一次降級之後，
+    當天就再也寫不進任何新內容了。
+    """
+    settings = Settings(
+        memory=MemorySettings(root=tmp_path / "memory"),
+        courses=CourseSettings(sessions_root=tmp_path / "sessions"),
+    )
+    orchestrator = create_app(settings=settings).state.orchestrator
+    event = orchestrator.memory.append(
+        "activity",
+        "使用者正在編寫並除錯專案程式碼。",
+        {"scene": "other"},
+        timestamp=datetime.now(UTC),
+    )
+    local_time = datetime.fromisoformat(event.timestamp.replace("Z", "+00:00")).astimezone()
+    day = local_time.date()
+    orchestrator.memory.write_daily_memory(
+        day, f"# {day.isoformat()} 的記憶\n\n{DEGRADED_MARKER}舊的降級內容。\n"
+    )
+
+    async def fail(_method, _payload):
+        raise TimeoutError("model timed out")
+
+    monkeypatch.setattr(orchestrator.native_client, "request", fail)
+    result = await orchestrator.generate_daily_memory(day.isoformat())
+
+    assert result["generated"] is True
+    assert result["degraded"] is True
+    assert "舊的降級內容" not in orchestrator.memory.read_daily_memory(day)
+
+
+async def test_successful_summary_replaces_a_degraded_document(tmp_path, monkeypatch):
+    """模型恢復後，正常摘要必須能蓋掉先前的降級產物。"""
+    settings = Settings(
+        memory=MemorySettings(root=tmp_path / "memory"),
+        courses=CourseSettings(sessions_root=tmp_path / "sessions"),
+    )
+    orchestrator = create_app(settings=settings).state.orchestrator
+    event = orchestrator.memory.append(
+        "activity",
+        "使用者正在編寫並除錯專案程式碼。",
+        {"scene": "other"},
+        timestamp=datetime.now(UTC),
+    )
+    local_time = datetime.fromisoformat(event.timestamp.replace("Z", "+00:00")).astimezone()
+    day = local_time.date()
+    orchestrator.memory.write_daily_memory(
+        day, f"# {day.isoformat()} 的記憶\n\n{DEGRADED_MARKER}舊的降級內容。\n"
+    )
+
+    stamp = local_time.strftime("%H:%M")
+    async def summarize(_method, _payload):
+        return {"text": f"{stamp}至{stamp}，進行專案開發與除錯，完成階段性驗證。"}
+
+    monkeypatch.setattr(orchestrator.native_client, "request", summarize)
+    result = await orchestrator.generate_daily_memory(day.isoformat())
+
+    assert result["degraded"] is False
+    assert DEGRADED_MARKER not in orchestrator.memory.read_daily_memory(day)
 
 
 async def test_recent_activity_is_not_duplicated_after_restart(tmp_path, monkeypatch):

@@ -77,6 +77,17 @@ PERCEPTION_EVIDENCE_KEYS = (
 )
 _DEV_EVIDENCE_KEYS = frozenset(PERCEPTION_EVIDENCE_KEYS[:7])
 
+# 每日記憶降級標記。模型逾時或摘要不完整時仍寫入本地時間軸（記憶工具不該有空白的
+# 一天，資料降級比資料遺失好），但**絕不靜默**：標記寫進文件本身而不只放在 API 回應，
+# 因為記憶檔會活得比任何一次 API 呼叫久——半年後翻 vault 才分得出哪天是模型摘要、
+# 哪天是機械式時間軸。這個標記同時也是「可否覆蓋既有文件」的判斷依據。
+_DEGRADED_PREFIX = "⚠️ 降級："
+DEGRADED_MARKER = f"> {_DEGRADED_PREFIX}"
+DEGRADED_REASONS = {
+    "model_unavailable": "本地模型無法回應",
+    "incomplete_summary": "模型摘要不完整，未涵蓋當日首尾事件",
+}
+
 # dev_status 白名單，對應 PERCEPTION_PROMPT 中列出的八種狀態。
 _DEV_STATUSES = frozenset(
     {
@@ -465,7 +476,9 @@ class OrchestrationService:
                 cleaned
                 and not re.fullmatch(r"\d{4}-\d{2}-\d{2} 的記憶", cleaned)
                 and cleaned not in {"今日概覽", "活動時間線", "今日回顧"}
-                and not cleaned.startswith(("生成於", "由本地模型總結於"))
+                and not cleaned.startswith(
+                    ("生成於", "由本地模型總結於", _DEGRADED_PREFIX)
+                )
             ):
                 return cleaned[:100]
         return ""
@@ -773,7 +786,8 @@ class OrchestrationService:
 
     async def _summarize_daily_events(
         self, day: date, events: Sequence[MemoryEvent], generated_at: datetime
-    ) -> str:
+    ) -> tuple[str, str | None]:
+        """回傳 (摘要, 降級原因)。原因為 None 表示這是真正的模型摘要。"""
         source = self._compact_memory_timeline(events)
 
         cutoff = generated_at if day == generated_at.date() else datetime.combine(
@@ -798,11 +812,13 @@ class OrchestrationService:
             )
             summary = re.sub(r"\s+(?=\d{1,2}:\d{2}(?:至|-))", "\n", summary)
             if self._memory_summary_covers(summary, events[0], events[-1]):
-                return summary
+                return summary, None
             logger.warning("Rejected incomplete daily memory summary: %s", summary)
+            reason = "incomplete_summary"
         except (RuntimeError, TimeoutError) as exc:
             logger.warning("Daily memory model unavailable; using local timeline: %s", exc)
-        return self._fallback_daily_summary(source)
+            reason = "model_unavailable"
+        return self._fallback_daily_summary(source), reason
 
     @staticmethod
     def _fallback_daily_summary(source: str) -> str:
@@ -817,30 +833,73 @@ class OrchestrationService:
         return "\n".join(lines)[:1800]
 
     @staticmethod
-    def _wrap_daily_memory(day: date, generated_at: datetime, summary: str) -> str:
+    def _wrap_daily_memory(
+        day: date,
+        generated_at: datetime,
+        summary: str,
+        degraded_reason: str | None = None,
+    ) -> str:
         summary = to_traditional_chinese(summary)
+        if degraded_reason:
+            provenance = (
+                f"{DEGRADED_MARKER}"
+                f"{DEGRADED_REASONS.get(degraded_reason, degraded_reason)}，"
+                f"以下為本地時間軸而非模型摘要（{generated_at:%Y-%m-%d %H:%M}）。"
+            )
+        else:
+            provenance = f"> 由本地模型總結於 {generated_at:%Y-%m-%d %H:%M}。"
         return (
             f"# {day.isoformat()} 的記憶\n\n"
-            f"> 由本地模型總結於 {generated_at:%Y-%m-%d %H:%M}。\n\n"
+            f"{provenance}\n\n"
             "## 今日回顧\n\n"
             f"{summary.strip()}\n"
         )
+
+    @staticmethod
+    def _is_degraded_document(content: str) -> bool:
+        return DEGRADED_MARKER in content
 
     async def generate_daily_memory(self, day_value: str) -> dict[str, Any]:
         day = self._memory_day(day_value)
         events = self.memory.events_for_day(day)
         generated_at = datetime.now().astimezone()
+        degraded_reason: str | None = None
         if events:
-            summary = await self._summarize_daily_events(day, events, generated_at)
+            summary, degraded_reason = await self._summarize_daily_events(
+                day, events, generated_at
+            )
         else:
             summary = "今天暫時沒有記錄到可歸納的活動。"
-        content = self._wrap_daily_memory(day, generated_at, summary)
+
+        if degraded_reason:
+            existing = self.memory.read_daily_memory(day)
+            if existing and not self._is_degraded_document(existing):
+                # 既有的模型摘要優於機械式時間軸：降級產物不得覆蓋它。
+                # 這條是資料保護，不只是可見性——覆蓋掉就救不回來了。
+                logger.warning(
+                    "Keeping existing daily memory for %s; refused to overwrite a "
+                    "model summary with a degraded timeline (%s)",
+                    day.isoformat(),
+                    degraded_reason,
+                )
+                return {
+                    "date": day.isoformat(),
+                    "event_count": len(events),
+                    "generated": False,
+                    "content": existing,
+                    "degraded": True,
+                    "degraded_reason": degraded_reason,
+                }
+
+        content = self._wrap_daily_memory(day, generated_at, summary, degraded_reason)
         self.memory.write_daily_memory(day, content)
         result = {
             "date": day.isoformat(),
             "event_count": len(events),
             "generated": True,
             "content": content,
+            "degraded": degraded_reason is not None,
+            "degraded_reason": degraded_reason,
         }
         await self.events.publish(
             Event("memory.day.generated", {"date": day.isoformat(), "event_count": len(events)})
@@ -998,6 +1057,9 @@ class OrchestrationService:
                 "\n",
                 to_traditional_chinese(content),
             ),
+            # 讀回時也要看得出降級。原因只在產生當下有意義，事後從文件只能判斷「是否」，
+            # 人可讀的原因寫在文件的標記行裡。
+            "degraded": self._is_degraded_document(content),
         }
 
     async def list_daily_memories(self) -> list[dict[str, Any]]:

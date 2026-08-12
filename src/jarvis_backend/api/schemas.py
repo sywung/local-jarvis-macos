@@ -90,6 +90,11 @@ class MemoryDayResponse(BaseModel):
     event_count: int
     generated: bool
     content: str
+    # 模型逾時或摘要不完整時仍會寫入本地時間軸，但必須標示出來，否則事後分不出
+    # 哪天的記憶是降級產物。generated=False 且 degraded=True 代表既有的模型摘要
+    # 被保留、拒絕被降級產物覆蓋。
+    degraded: bool = False
+    degraded_reason: str | None = None
 
 
 class MemoryImageGenerateRequest(BaseModel):
