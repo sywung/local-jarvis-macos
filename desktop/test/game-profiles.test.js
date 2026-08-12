@@ -16,7 +16,7 @@ const {
 test("game profiles include all built-in profiles", () => {
   const settings = loadSettings(path.join(os.tmpdir(), `missing-${Date.now()}.json`));
   assert.equal(settings.selectedId, "minecraft");
-  assert.deepEqual(settings.profiles.map(profile => profile.name), ["我的世界", "植物大戰殭屍", "胡鬧廚房"]);
+  assert.deepEqual(settings.profiles.map(profile => profile.name), ["我的世界", "植物大戰殭屍", "胡鬧廚房", "RD 開發者"]);
   assert.equal(settings.profiles.every(profile => profile.builtIn), true);
   assert.match(PLANTS_VS_ZOMBIES_PROMPT, /陽光產能/);
   assert.match(OVERCOOKED_PROMPT, /只給當前最高優先順序/);
@@ -51,7 +51,10 @@ test("new built-in profiles are added to settings saved by older versions", () =
   }), "utf8");
 
   const loaded = loadSettings(file);
-  assert.deepEqual(loaded.profiles.map(profile => profile.id), ["minecraft", "plants-vs-zombies", "overcooked"]);
+  assert.deepEqual(
+    loaded.profiles.map(profile => profile.id),
+    ["minecraft", "plants-vs-zombies", "overcooked", "rd-developer"]
+  );
   assert.equal(loaded.profiles[0].prompt, "保留舊提示詞");
   fs.rmSync(directory, { recursive: true, force: true });
 });
