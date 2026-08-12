@@ -154,7 +154,7 @@ function render(state) {
     : detail);
   monitorValue.textContent = state.monitoring ? "感知中" : phase === "paused" ? "已暫停" : "未執行";
   sceneValue.textContent = state.scene === "game" ? `遊戲 · ${state.gameProfile}` : sceneNames[state.scene] || "其他";
-  gameProfileSummary.textContent = `遊戲方案：${state.gameProfile || "我的世界"}`;
+  gameProfileSummary.textContent = `陪伴方案：${state.gameProfile || "我的世界"}`;
   if (phase === "starting" || initializingEnvironment) {
     if (!wasStarting) {
       lastLoggedDownloadPercent = -5;
@@ -536,7 +536,7 @@ profileSelect.addEventListener("change", () => {
 });
 $("#profile-add").addEventListener("click", () => {
   const id = `custom-${Date.now()}`;
-  gameProfiles.push({ id, name: "新遊戲", prompt: "領域關注：本遊戲的目標、資源、風險和剛發生的結果。表達風格：像熟悉遊戲的朋友。", builtIn: false });
+  gameProfiles.push({ id, name: "新方案", prompt: "領域關注：畫面上的目標、狀態、資源、風險和剛發生的結果。表達風格：像熟悉這個情境的朋友。", builtIn: false });
   renderProfileEditor({ selectedId: id, profiles: gameProfiles }, false);
   setProfileDirty(true);
   profileName.select();
@@ -560,7 +560,7 @@ profileForm.addEventListener("submit", async event => {
   event.preventDefault();
   try {
     renderProfileEditor(await window.jarvis.saveGameProfile({ id: profileSelect.value, name: profileName.value, prompt: profilePrompt.value }));
-    addLog(`已選用《${profileName.value.trim()}》遊戲方案`);
+    addLog(`已選用《${profileName.value.trim()}》陪伴方案`);
     profileDialog.close();
   } catch (error) {
     profileError.classList.remove("neutral");

@@ -376,7 +376,7 @@ function setScene(sceneValue) {
     if (!petChatVisible && petWindow.isVisible()) petWindow.hide();
     showBarrage();
     if (previousScene !== "game") {
-      showBarrage(`已載入《${selectedGameProfile().name}》遊戲方案`);
+      showBarrage(`已載入《${selectedGameProfile().name}》陪伴方案`);
     }
   } else {
     barrageWindow.hide();
@@ -709,7 +709,7 @@ function registerIpc() {
   }));
   ipcMain.handle("jarvis:save-game-profile", async (_event, value) => {
     const profile = normalizeProfile(value);
-    if (!profile) throw new Error("遊戲名稱和提示詞不能為空");
+    if (!profile) throw new Error("方案名稱和提示詞不能為空");
     const index = gameSettings.profiles.findIndex(item => item.id === profile.id);
     if (index >= 0 && gameSettings.profiles[index].builtIn) profile.builtIn = true;
     if (index >= 0) gameSettings.profiles[index] = profile;
@@ -719,7 +719,7 @@ function registerIpc() {
     return syncGameProfile();
   });
   ipcMain.handle("jarvis:select-game-profile", async (_event, id) => {
-    if (!gameSettings.profiles.some(item => item.id === id)) throw new Error("遊戲陪伴方案不存在");
+    if (!gameSettings.profiles.some(item => item.id === id)) throw new Error("陪伴方案不存在");
     gameSettings.selectedId = id;
     persistGameSettings();
     return syncGameProfile();

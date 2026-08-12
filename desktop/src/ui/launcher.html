@@ -68,12 +68,12 @@
             </div>
             <div class="system-row">
               <span class="row-icon amber"><i data-lucide="gamepad-2"></i></span>
-              <div><strong>當前場景</strong><small id="game-profile-summary">遊戲方案：我的世界</small></div>
+              <div><strong>當前場景</strong><small id="game-profile-summary">陪伴方案：我的世界</small></div>
               <span id="scene-value" class="row-value">其他</span>
             </div>
             <button id="game-profile-button" class="system-row profile-row" type="button">
               <span class="row-icon green"><i data-lucide="library"></i></span>
-              <div><strong>遊戲陪伴方案</strong><small>選擇遊戲與陪伴偏好</small></div>
+              <div><strong>陪伴方案</strong><small>選擇陪伴情境與偏好</small></div>
               <span class="row-action">管理 <i data-lucide="chevron-right"></i></span>
             </button>
             <div class="system-row">
@@ -148,21 +148,21 @@
     <form id="game-profile-form" method="dialog">
       <header class="dialog-head">
         <div>
-          <p class="section-kicker">遊戲場景</p>
+          <p class="section-kicker">陪伴場景</p>
           <h2 id="profile-dialog-title">陪伴方案</h2>
-          <p>進入對應遊戲時，賈維斯會自動使用所選方案。</p>
+          <p>進入對應場景時，賈維斯會自動使用所選方案。</p>
         </div>
         <button id="profile-close" class="icon-command compact" type="button" title="關閉" aria-label="關閉"><i data-lucide="x"></i></button>
       </header>
 
       <section class="profile-picker" aria-label="方案選擇">
-        <label><span>方案庫</span><select id="profile-select" aria-label="當前遊戲"></select></label>
+        <label><span>方案庫</span><select id="profile-select" aria-label="當前方案"></select></label>
         <button id="profile-add" class="icon-command compact" type="button" title="新建方案" aria-label="新建方案"><i data-lucide="plus"></i></button>
         <button id="profile-delete" class="icon-command compact danger" type="button" title="刪除方案" aria-label="刪除方案"><i data-lucide="trash-2"></i></button>
       </section>
 
       <div class="dialog-fields">
-        <label class="field-label"><span>遊戲名稱</span><input id="profile-name" maxlength="40" autocomplete="off" required></label>
+        <label class="field-label"><span>方案名稱</span><input id="profile-name" maxlength="40" autocomplete="off" required></label>
         <label class="field-label prompt-field">
           <span class="field-meta"><span>專屬提示詞</span><output id="profile-prompt-count">0 / 8000</output></span>
           <textarea id="profile-prompt" maxlength="8000" rows="9" required></textarea>

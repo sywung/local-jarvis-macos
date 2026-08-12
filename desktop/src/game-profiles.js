@@ -117,8 +117,8 @@ function saveSettings(filePath, settings) {
 
 function removeProfile(settings, id) {
   const profile = settings.profiles.find(item => item.id === id);
-  if (!profile) throw new Error("遊戲陪伴方案不存在");
-  if (settings.profiles.length <= 1) throw new Error("至少保留一個遊戲陪伴方案");
+  if (!profile) throw new Error("陪伴方案不存在");
+  if (settings.profiles.length <= 1) throw new Error("至少保留一個陪伴方案");
   const deletedBuiltInIds = new Set(settings.deletedBuiltInIds || []);
   if (builtInIds.has(profile.id)) deletedBuiltInIds.add(profile.id);
   const profiles = settings.profiles.filter(item => item.id !== id);
