@@ -13,6 +13,10 @@ class HealthResponse(BaseModel):
     lifecycle: LifecycleState
     native_connected: bool
     inference_backend: Literal["cuda", "cpu", "unknown"] = "unknown"
+    # Perception can die (lost screen-capture permission) while the process
+    # stays up and answers everything with ok. These make that visible.
+    perception_ok: bool = True
+    perception_error: str | None = None
     version: str = "0.1.2"
 
 

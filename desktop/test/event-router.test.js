@@ -46,6 +46,30 @@ test("keyframe requests remain backend directed", () => {
   );
 });
 
+test("perception outage warns without marking the app as failed", () => {
+  const effects = routeBackendEvent({
+    topic: "perception.unavailable",
+    payload: { reason: "screencapture failed: exit 1", consecutive_failures: 3 },
+  });
+  assert.equal(effects.length, 1);
+  // fault would flip phase to "error" and stop monitoring; this outage is
+  // recoverable on its own, so it must stay a warning.
+  assert.equal(effects[0].type, "warning");
+  assert.equal(effects[0].tone, "error");
+  assert.match(effects[0].text, /螢幕錄製/);
+  assert.equal(effects[0].detail, "screencapture failed: exit 1");
+});
+
+test("perception recovery clears the warning with a success tone", () => {
+  const effects = routeBackendEvent({
+    topic: "perception.recovered",
+    payload: { after_failures: 7 },
+  });
+  assert.equal(effects.length, 1);
+  assert.equal(effects[0].type, "warning");
+  assert.equal(effects[0].tone, "success");
+});
+
 test("idle status stays silent and backend reminders use the idle bubble", () => {
   assert.deepEqual(
     routeBackendEvent({ topic: "screen.idle", payload: { idle_seconds: 120 } }),

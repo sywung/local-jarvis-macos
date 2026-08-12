@@ -2053,3 +2053,15 @@ class OrchestrationService:
     @property
     def native_connected(self) -> bool:
         return bool(getattr(self.native_client, "running", False))
+
+    @property
+    def perception_ok(self) -> bool:
+        """Whether the native worker is still capturing successfully.
+
+        Clients other than the macOS worker don't report this; assume healthy.
+        """
+        return bool(getattr(self.native_client, "perception_ok", True))
+
+    @property
+    def perception_error(self) -> str | None:
+        return getattr(self.native_client, "perception_error", None)

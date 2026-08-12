@@ -35,6 +35,9 @@ CAPTURE_MAX_EDGE = int(os.environ.get("JARVIS_CAPTURE_MAX_EDGE", "1600"))
 # 裁切到前景視窗：多螢幕時跟著使用者跑，並把縮放預算留給實際內容而非桌布。
 # 設 0 可退回整個主螢幕擷取，用來 A/B 比較感知品質。
 CAPTURE_ACTIVE_WINDOW = os.environ.get("JARVIS_CAPTURE_ACTIVE_WINDOW", "1") != "0"
+# 擷取失敗只寫一次 log 會讓感知靜默死亡：health 仍回 ok、指令仍回 ok，卻零記錄。
+# 連續失敗達此門檻就 emit 一次 perception.unavailable，並讓 /health 帶出原因。
+PERCEPTION_ALERT_AFTER_FAILURES = 3
 
 # --- Audio full-duplex (ambient video/livestream commentary) ----------------
 # System audio is captured from a loopback device (BlackHole) via ffmpeg's
@@ -196,6 +199,8 @@ class MacNativeClient(NativeClient):
         self._duplex_instruction = ""
         self._audio_unavailable_logged = False
         self._screen_unavailable_logged = False
+        self._perception_failures = 0
+        self._perception_error: str | None = None
 
     # -- lifecycle ----------------------------------------------------------
     async def start(self) -> None:
@@ -262,6 +267,9 @@ class MacNativeClient(NativeClient):
 
     async def _stop_monitoring(self) -> None:
         self._monitoring = False
+        # A stopped loop is not a broken one; don't leave a stale degraded state.
+        self._perception_failures = 0
+        self._perception_error = None
         task = self._perception_task
         self._perception_task = None
         if task is not None:
@@ -286,12 +294,54 @@ class MacNativeClient(NativeClient):
                 if not self._screen_unavailable_logged:
                     logger.warning("%s", exc)
                     self._screen_unavailable_logged = True
-            except Exception:
+                await self._note_perception_failure(str(exc))
+            except Exception as exc:
                 logger.exception("perception cycle failed")
+                await self._note_perception_failure(f"{type(exc).__name__}: {exc}")
             else:
                 self._screen_unavailable_logged = False
+                await self._note_perception_success()
             elapsed = asyncio.get_running_loop().time() - started
             await asyncio.sleep(max(0.0, self._interval - elapsed))
+
+    # -- perception health --------------------------------------------------
+    @property
+    def perception_ok(self) -> bool:
+        """False once perception has failed enough times in a row to matter.
+
+        An orphaned backend (its launcher quit, so it lost the Screen Recording
+        grant) keeps answering health checks and commands while capturing
+        nothing at all. Surfacing that here is what stops the silent failure.
+        """
+        return self._perception_failures < PERCEPTION_ALERT_AFTER_FAILURES
+
+    @property
+    def perception_error(self) -> str | None:
+        return None if self.perception_ok else self._perception_error
+
+    async def _note_perception_failure(self, reason: str) -> None:
+        self._perception_failures += 1
+        self._perception_error = reason
+        # Emit exactly on the threshold: one alert per outage, not per cycle.
+        if self._perception_failures == PERCEPTION_ALERT_AFTER_FAILURES:
+            await self.emit(
+                {
+                    "type": "perception.unavailable",
+                    "reason": reason,
+                    "consecutive_failures": self._perception_failures,
+                }
+            )
+
+    async def _note_perception_success(self) -> None:
+        if not self.perception_ok:
+            await self.emit(
+                {
+                    "type": "perception.recovered",
+                    "after_failures": self._perception_failures,
+                }
+            )
+        self._perception_failures = 0
+        self._perception_error = None
 
     # -- inference ----------------------------------------------------------
     async def _perceive(self, image_b64: str) -> str:

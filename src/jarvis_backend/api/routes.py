@@ -57,6 +57,8 @@ async def health(request: Request) -> HealthResponse:
         lifecycle=state,
         native_connected=orchestrator.native_connected,
         inference_backend=os.getenv("JARVIS_ACTIVE_INFERENCE_BACKEND", "unknown"),
+        perception_ok=orchestrator.perception_ok,
+        perception_error=orchestrator.perception_error,
     )
 
 

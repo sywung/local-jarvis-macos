@@ -81,6 +81,9 @@ const state = {
   inferenceReason: "",
   screenBlocked: false,
   gameProfile: "我的世界",
+  // 感知擷取是否還活著。後端可以完全正常（health ok、指令 ok）卻一張畫面都抓不到，
+  // 這個旗標讓那種靜默失效在托盤與氣泡上看得見。
+  perceptionOk: true,
 };
 
 function selectedGameProfile() {
@@ -333,8 +336,14 @@ function createTray() {
 
 function updateTrayMenu() {
   if (!tray) return;
+  // A transient bubble is easy to miss; the tray keeps the outage visible for
+  // as long as it lasts.
+  tray.setToolTip(state.perceptionOk ? "AI Jarvis" : "AI Jarvis — 感知異常（看不到螢幕）");
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "開啟控制面板", click: () => launcherWindow.show() },
+    ...(state.perceptionOk
+      ? []
+      : [{ label: "⚠️ 感知異常：請檢查螢幕錄製權限", enabled: false }]),
     { type: "separator" },
     {
       label: state.monitoring ? "暫停感知" : "繼續感知",
@@ -564,6 +573,14 @@ function handleBackendEvent(event) {
     if (effect.type === "fault") {
       publishState({ phase: "error", monitoring: false, error: effect.text });
       showBubble({ text: effect.text, tone: "error", duration: 10000 });
+    }
+    if (effect.type === "warning") {
+      // Recoverable: keep phase/monitoring untouched so perception resumes on
+      // its own once the underlying grant comes back.
+      if (effect.detail) console.warn("[jarvis] perception:", effect.detail);
+      publishState({ perceptionOk: effect.tone !== "error" });
+      updateTrayMenu();
+      showBubble({ text: effect.text, tone: effect.tone, duration: effect.duration });
     }
   }
 }
